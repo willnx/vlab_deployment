@@ -1,0 +1,21 @@
+version: '3'
+services:
+  deployment-api:
+    ports:
+      - "5000:5000"
+    image:
+      willnx/vlab-deployment-api
+
+  deployment-worker:
+    image:
+      willnx/vlab-deployment-worker
+    dns: ['10.241.80.49']
+    volumes:
+      - /home/willhn/tmp:/templates
+      - /home/willhn/vlab:/etc/vlab
+    environment:
+      - VLAB_IP=1.2.3.4
+      - AUTH_TOKEN_ALGORITHM=RS256
+  deployment-broker:
+    image:
+      portus.emc.com:5000/isilon/rabbitmq:3.7-management-alpine
