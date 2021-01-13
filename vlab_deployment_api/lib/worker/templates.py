@@ -63,24 +63,26 @@ def create(username, template, machines, portmaps, summary, logger):
         raise ValueError('A template named {} already exists. Try a new/different name.'.format(template))
     futures = set()
     failures = []
+    vm_kind_map = {}
     with ThreadPoolExecutor(max_workers=const.VLAB_DEPLOY_CONCURRENT_VMS) as executor:
         for machine_name in machines:
             future = executor.submit(vmware._make_ova, username, machine_name, hidden_template_dir, logger)
             futures.add(future)
         for future in as_completed(futures):
             try:
-                _, error = future.result()
+                new_ova, kind, error = future.result()
             except Exception as doh:
                 logger.exception(doh)
-                error = str(doh)
-            if error:
-                failures.append(error)
+                failures.append(str(doh))
+            else:
+                name = os.path.splitext(os.path.basename(new_ova))[0]
+                vm_kind_map[name] = kind
     if failures:
         shutil.rmtree(hidden_template_dir)
         error_message = 'Failed to create template. Error(s): {}'.format(' '.join(failures))
         raise ValueError(error_message)
     else:
-        machine_meta = create_machine_meta(template, portmaps)
+        machine_meta = create_machine_meta(template, portmaps, vm_kind_map)
         email = lookup_email_addr(username)
         set_meta(template, username, email, summary, machine_meta)
         template_dir = os.path.join(const.VLAB_DEPLOYMENT_TEMPLATE_DIR, template)
@@ -158,7 +160,7 @@ def check_for_template(template):
         raise FileExistsError()
 
 
-def create_machine_meta(template, portmaps):
+def create_machine_meta(template, portmaps, vm_kind_map):
     """
     :Returns: Dictionary
 
@@ -170,9 +172,10 @@ def create_machine_meta(template, portmaps):
     """
     machines_meta = {}
     for machine in portmaps:
+        kind = vm_kind_map[machine['name']]
         meta = map_machine(name=machine['name'].replace(vmware.VM_NAME_APPEND, ''),
                            ip=machine['target_addr'],
                            ports=machine['target_ports'],
-                           kind=template)
+                           kind=kind)
         machines_meta.update(meta)
     return machines_meta

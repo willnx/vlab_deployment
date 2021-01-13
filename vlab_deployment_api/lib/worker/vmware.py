@@ -199,7 +199,7 @@ def _get_network_mapping(vcenter, ova, vm_kind, username):
     front_end = '{}_frontend'.format(username)
     back_end = '{}_backend'.format(username)
     if vm_kind.lower() == 'onefs':
-        net_map = _make_onefs_network_map(vcenter.networks, front_end, back_end)
+        net_map = _make_onefs_network_map(ova.networks, vcenter.networks, front_end, back_end)
     else:
         try:
             net_map = vim.OvfManager.NetworkMapping()
@@ -211,14 +211,17 @@ def _get_network_mapping(vcenter, ova, vm_kind, username):
     return net_map
 
 
-def _make_onefs_network_map(vcenter_networks, front_end, back_end):
+def _make_onefs_network_map(ova_networks, vcenter_networks, front_end, back_end):
     """The OneFS VMs have 3 NICs. This function maps the correct frontend/backend
     NICs to the appropriate networks in vSphere.
 
     :Returns: List
 
-    :param vcenter_networks: All the networks in vSphere.
-    :type vcenter_networks: Dictionary
+    :param ova_networks: The networks of the VM, as defined by it's OVA.
+    :type ova_networks: List
+
+    :param vcenter_networks: The networks configured in vSphere.
+    :type vcenter_networks: List
 
     :param front_end: The public network clients use to connect to OneFS.
     :type front_end: String
@@ -227,16 +230,22 @@ def _make_onefs_network_map(vcenter_networks, front_end, back_end):
     :type back_end: String
     """
     net_map = []
-    mapping = [('hostonly', back_end),
-               ('nat', front_end),
-               ('bridged', back_end)]
-    for ova_network, vlab_network in mapping:
+    try:
+        frontend = vcenter_networks[front_end]
+        backend = vcenter_networks[back_end]
+    except KeyError as doh:
+        error = 'No network named {}'.format(doh)
+        raise ValueError(error)
+
+    for network in ova_networks:
         map = vim.OvfManager.NetworkMapping()
-        map.name = ova_network
-        try:
-            map.network = vcenter_networks[vlab_network]
-        except KeyError:
-            error = 'No network named {}'.format(vlab_network)
+        map.name = network
+        if network.endswith('backend'):
+            map.network = backend
+        elif network.endswith('frontend'):
+            map.network = frontend
+        else:
+            error = "Unexpected network in OVA for OneFS: {}".format(network)
             raise ValueError(error)
         net_map.append(map)
     return net_map
@@ -258,6 +267,7 @@ def _make_ova(username, machine_name, template_dir, logger):
     :type logger: logging.LoggerAdapter
     """
     new_ova = ''
+    kind = ''
     error = ''
     with vCenter(host=const.INF_VCENTER_SERVER, user=const.INF_VCENTER_USER,
                  password=const.INF_VCENTER_PASSWORD) as vcenter:
@@ -266,9 +276,11 @@ def _make_ova(username, machine_name, template_dir, logger):
             if vm.name == machine_name:
                 # Avoids VM names getting crazy long as a result of users making
                 # new templates from existing deployments.
+                info = virtual_machine.get_info(vcenter, vm, username)
+                kind = info['meta']['component']
                 ova_name = vm.name.replace(VM_NAME_APPEND, '')
                 new_ova = virtual_machine.make_ova(vcenter, vm, template_dir, logger, ova_name=ova_name)
                 break
         else:
             error = 'No VM named {} found.'.format(machine_name)
-    return new_ova, error
+    return new_ova, kind, error

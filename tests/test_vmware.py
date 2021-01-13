@@ -249,7 +249,7 @@ class TestVMware(unittest.TestCase):
         vm_kind = 'OneFS'
         username = 'meg'
         fake_ova = MagicMock()
-        fake_ova.networks = ['foo', 'bar', 'baz']
+        fake_ova.networks = ['foo_frontend', 'bar_backend', 'baz_backend']
         fake_vcenter = MagicMock()
         fake_vcenter.networks = {'meg_frontend' : vmware.vim.Network('asdf'), 'meg_backend' : vmware.vim.Network('qwer')}
 
@@ -276,8 +276,9 @@ class TestVMware(unittest.TestCase):
         fake_vcenter.networks = {'meg_frontend' : vmware.vim.Network('asdf'), 'meg_backend' : vmware.vim.Network('qwer')}
         front_end = 'meg_frontend'
         back_end = 'meg_backend'
+        ova_networks = ['some_frontend', 'some_backend', 'some_backend']
 
-        net_map = vmware._make_onefs_network_map(fake_vcenter.networks, front_end, back_end)
+        net_map = vmware._make_onefs_network_map(ova_networks, fake_vcenter.networks, front_end, back_end)
 
         self.assertTrue(isinstance(net_map, list))
         self.assertEqual(len(net_map), 3)
@@ -288,13 +289,15 @@ class TestVMware(unittest.TestCase):
         fake_vcenter.networks = {}
         front_end = 'meg_frontend'
         back_end = 'meg_backend'
+        ova_networks = ['some_frontend', 'some_backend', 'some_backend']
 
         with self.assertRaises(ValueError):
-            vmware._make_onefs_network_map(fake_vcenter.networks, front_end, back_end)
+            vmware._make_onefs_network_map(ova_networks, fake_vcenter.networks, front_end, back_end)
 
+    @patch.object(vmware.virtual_machine, 'get_info')
     @patch.object(vmware.virtual_machine, 'make_ova')
     @patch.object(vmware, 'vCenter')
-    def test_make_ova(self, fake_vCenter, fake_make_ova):
+    def test_make_ova(self, fake_vCenter, fake_make_ova, fake_get_info):
         """``_make_ova`` - Returns a tuple with the location of the new OVA upon success"""
         username = 'bart'
         machine_name = 'cowabunga'
@@ -306,15 +309,17 @@ class TestVMware(unittest.TestCase):
         fake_folder.childEntity = [fake_vm]
         fake_vCenter.return_value.__enter__.return_value.get_by_name.return_value = fake_folder
         fake_make_ova.return_value = '/path/to/cowabunga.ova'
+        fake_get_info.return_value = {'meta': {'component': 'CentOS'}}
 
         output = vmware._make_ova(username, machine_name, template_dir, logger)
-        expected = ('/path/to/cowabunga.ova', '')
+        expected = ('/path/to/cowabunga.ova', 'CentOS', '')
 
         self.assertEqual(output, expected)
 
+    @patch.object(vmware.virtual_machine, 'get_info')
     @patch.object(vmware.virtual_machine, 'make_ova')
     @patch.object(vmware, 'vCenter')
-    def test_make_ova_error(self, fake_vCenter, fake_make_ova):
+    def test_make_ova_error(self, fake_vCenter, fake_make_ova, fake_get_info):
         """``_make_ova`` - Returns a tuple with an error message upon failure"""
         username = 'bart'
         machine_name = 'vm01'
@@ -328,7 +333,7 @@ class TestVMware(unittest.TestCase):
         fake_make_ova.return_value = '/path/to/cowabunga.ova'
 
         output = vmware._make_ova(username, machine_name, template_dir, logger)
-        expected = ('', 'No VM named vm01 found.')
+        expected = ('', '', 'No VM named vm01 found.')
 
         self.assertEqual(output, expected)
 
