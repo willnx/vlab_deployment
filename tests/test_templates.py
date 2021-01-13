@@ -251,10 +251,11 @@ class TestFunctions(unittest.TestCase):
         """``templates`` create_machine_meta constructs the expected dictionary"""
         portmaps = [{'name': 'vm01', 'target_addr': '1.2.3.4', 'target_ports': [22]}, {'name' : 'vm02', 'target_addr': '1.2.3.5', 'target_ports': [443]}]
         template = 'myCoolTemplate'
+        vm_kind_map = {'vm01': 'OneFS', 'vm02': 'Windows'}
 
-        output = templates.create_machine_meta(template, portmaps)
-        expected = {'vm01': {'ip': '1.2.3.4', 'kind': 'myCoolTemplate', 'ports': [22]},
-                    'vm02': {'ip': '1.2.3.5', 'kind': 'myCoolTemplate', 'ports': [443]}}
+        output = templates.create_machine_meta(template, portmaps, vm_kind_map)
+        expected = {'vm01': {'ip': '1.2.3.4', 'kind': 'OneFS', 'ports': [22]},
+                    'vm02': {'ip': '1.2.3.5', 'kind': 'Windows', 'ports': [443]}}
 
         self.assertEqual(output, expected)
 
