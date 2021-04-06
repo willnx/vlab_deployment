@@ -175,7 +175,10 @@ def _create_vm(ova_file, machine_name, template, username, vm_kind, logger):
                      'configured' : True,
                      'generation' : 1}
         virtual_machine.set_meta(the_vm, meta_data)
-        info = virtual_machine.get_info(vcenter, the_vm, username, ensure_ip=False)
+        if vm_kind.lower() == 'onefs':
+            info = virtual_machine.get_info(vcenter, the_vm, username, ensure_ip=False)
+        else:
+            info = virtual_machine.get_info(vcenter, the_vm, username, ensure_ip=True)
         return {the_vm.name: info}
 
 
