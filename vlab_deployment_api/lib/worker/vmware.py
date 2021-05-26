@@ -89,7 +89,10 @@ def create_deployment(username, template, logger):
         error = "Multiple deployments per lab not allowed. Current have deployed: {}".format(current_deployment)
         raise ValueError(error)
     logger.info("Deploying template: %s", template)
-    meta = get_meta(template)
+    try:
+        meta = get_meta(template)
+    except FileNotFoundError:
+        raise ValueError("No deployment template named {} exists.".format(template))
     deployments = {}
     futures = set()
     with ThreadPoolExecutor(max_workers=const.VLAB_DEPLOY_CONCURRENT_VMS) as executor:
